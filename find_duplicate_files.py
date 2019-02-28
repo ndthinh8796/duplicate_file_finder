@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
 import argparse
 from os import walk, access, R_OK
-from os.path import expanduser, join, getsize, isfile
+from os.path import expanduser, join, getsize, isfile, isdir, islink
 from io import DEFAULT_BUFFER_SIZE
 from collections import defaultdict
 from hashlib import md5
 from json import dumps
-from time import time
 
 
 def take_args():
@@ -21,10 +20,6 @@ def take_args():
     parser.add_argument('-p', '--path', required=True,
                         help='root directory')
     return parser.parse_args()
-
-
-def validate_file(file_path):
-    return isfile(file_path) and access(file_path, R_OK)
 
 
 def scan_files(path):
@@ -43,6 +38,7 @@ def scan_files(path):
     @return: a file list identified by its absolute path name.
     """
     all_files = []
+    validate_path(path)
     for root, dirs, files in walk(path):
         for file in files:
             file_path = join(root, file)
@@ -79,13 +75,6 @@ def group_files_by_size(file_path_names):
     return [f_list for f_list in grouped_files.values() if len(f_list) > 1]
 
 
-def time_func(func):
-    start = time()
-    func()
-    end = time()
-    print('Time: {}'.format(str(end - start)))
-
-
 def get_file_checksum(file_path):
     """ Waypoint4
     Generate a Hash Value for a file using MD5
@@ -93,7 +82,7 @@ def get_file_checksum(file_path):
     Example:
 
         >>> get_file_checksum('/home/botnet/downloads/heobs/GL0625.jpg'):
-        dd23819ce306f0f1476522c9ce3e0a07'
+        'dd23819ce306f0f1476522c9ce3e0a07'
 
 
     @param file_path: a file path name
@@ -102,9 +91,8 @@ def get_file_checksum(file_path):
     """
     file_hash = md5()
     with open(file_path, 'rb') as f:
-        for chunk in iter(lambda: f.readinto(DEFAULT_BUFFER_SIZE), b''):
+        for chunk in iter(lambda: f.read(DEFAULT_BUFFER_SIZE), b''):
             file_hash.update(chunk)
-        # file_hash.update(f.read())
     return file_hash.hexdigest()
 
 
@@ -161,7 +149,18 @@ def find_duplicate_files(file_path_names):
     return duplicate_files
 
 
-@time_func
+def validate_file(file_path):
+    """ Check if path is a file and can be read and not a symlink """
+    return (isfile(file_path) and access(file_path, R_OK)
+            and not islink(file_path))
+
+
+def validate_path(path):
+    """ Check if input path is directory and can be read """
+    if not isdir(path) or not access(path, R_OK):
+        raise ValueError('Directory Error')
+
+
 def main():
     args = take_args()
     files = scan_files(args.path)
