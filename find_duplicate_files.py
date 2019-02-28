@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
-
 import argparse
-from os import walk
-from os.path import expanduser, join, getsize
+from os import walk, access, R_OK
+from os.path import expanduser, join, getsize, isfile
+from io import DEFAULT_BUFFER_SIZE
 from collections import defaultdict
 from hashlib import md5
+from json import dumps
+from time import time
 
 
 def take_args():
@@ -19,6 +21,10 @@ def take_args():
     parser.add_argument('-p', '--path', required=True,
                         help='root directory')
     return parser.parse_args()
+
+
+def validate_file(file_path):
+    return isfile(file_path) and access(file_path, R_OK)
 
 
 def scan_files(path):
@@ -39,7 +45,9 @@ def scan_files(path):
     all_files = []
     for root, dirs, files in walk(path):
         for file in files:
-            all_files.append(join(root, file))
+            file_path = join(root, file)
+            if validate_file(file_path):
+                all_files.append(file_path)
     return all_files
 
 
@@ -71,6 +79,13 @@ def group_files_by_size(file_path_names):
     return [f_list for f_list in grouped_files.values() if len(f_list) > 1]
 
 
+def time_func(func):
+    start = time()
+    func()
+    end = time()
+    print('Time: {}'.format(str(end - start)))
+
+
 def get_file_checksum(file_path):
     """ Waypoint4
     Generate a Hash Value for a file using MD5
@@ -85,27 +100,73 @@ def get_file_checksum(file_path):
 
     @return: hash value of a file as string
     """
-    md5 = hashlib.md5()
-    with open(path, 'rb') as f:
-        for chunk in iter(lambda: f.read(block_size), b''):
-             md5.update(chunk)
-    return md5.hexdigest()
+    file_hash = md5()
+    with open(file_path, 'rb') as f:
+        for chunk in iter(lambda: f.readinto(DEFAULT_BUFFER_SIZE), b''):
+            file_hash.update(chunk)
+        # file_hash.update(f.read())
+    return file_hash.hexdigest()
 
 
-def group_files_by_checksum (file_path_names):
+def group_files_by_checksum(file_path_names):
+    """ Waypoint5
+    Group file with the same checksum into a list
+
+    Example:
+
+        >>> file_path_names = ['/home/botnet/downloads/heobs/archive.csv',
+                               '/home/botnet/downloads/heobs/GL0625.jpg',
+                               ...]
+        >>> group_files_by_checksum(file_path_names)
+        [['/home/botnet/downloads/heobs/GL0701.jpg',
+        '/home/botnet/downloads/heritagego/GL0701.jpg'],
+        [...]]
+
+
+    @param file_path_names: a list of file of the same size
+
+    @return: list of list of file of the same checksum
+    """
     grouped_files_by_hash = defaultdict(list)
     for file in file_path_names:
-        for file in group:
-            grouped_files_by_hash[get_file_checksum(file)].append(file)
-    return [f_list for f_list in grouped_files.values() if len(f_list) > 1]
+        grouped_files_by_hash[get_file_checksum(file)].append(file)
+    return [f_list for f_list in grouped_files_by_hash.values()
+            if len(f_list) > 1]
 
 
 def find_duplicate_files(file_path_names):
+    """ Waypoint6
+    Returns a list of groups of duplicate files
+
+    Example:
+
+        >>> file_path_names = ['/home/botnet/downloads/heobs/archive.csv',
+                               '/home/botnet/downloads/heobs/GL0625.jpg',
+                               ...]
+        >>> find_duplicate_files(file_path_names)
+        [['/home/botnet/downloads/heobs/GL0701.jpg',
+        '/home/botnet/downloads/heritagego/GL0701.jpg'],
+        [...]]
+
+
+    @param file_path_names: a list of file paths
+
+    @return: list of list of file of the same content
+    """
     grouped_files_by_size = group_files_by_size(file_path_names)
-    return group_files_by_checksum(grouped_files_by_size)
+    duplicate_files = []
+    for file_group in grouped_files_by_size:
+        for duplicate_file_group in group_files_by_checksum(file_group):
+            duplicate_files.append(duplicate_file_group)
+    return duplicate_files
+
+
+@time_func
+def main():
+    args = take_args()
+    files = scan_files(args.path)
+    print(dumps(find_duplicate_files(files)))
 
 
 if __name__ == '__main__':
-    args = take_args()
-    files = scan_files(args.path)
-    find_duplicate_files(files)
+    main()
