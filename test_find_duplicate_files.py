@@ -12,7 +12,7 @@ class TestFindDuplicateFiles(unittest.TestCase):
     def setUpClass(cls):
         """ Create two duplicate files """
         process = Popen(['./generate_duplicate_files.py',
-                         '--file-count', '2',
+                         '--file-count', '3',
                          '--duplicate-file-ratio', '1'],
                         stdout=PIPE)
         stdout = loads(process.communicate()[0].decode())
@@ -29,12 +29,9 @@ class TestFindDuplicateFiles(unittest.TestCase):
         result = fdf.scan_files('testcase')
         root = 'testcase/symlink_test/'
         # check if no symlink in result
-        self.assertNotIn(join(getcwd(), root + 'symlink'),
-                         result)
-        self.assertNotIn(join(getcwd(), root + 'broken_symlink'),
-                         result)
-        self.assertNotIn(join(getcwd(), root + 'normal_symlink'),
-                         result)
+        self.assertIn(root + 'symlink', result)
+        self.assertNotIn(root + 'broken_symlink', result)
+        self.assertNotIn(root + 'normal_symlink', result)
         # empty directory
         self.assertEqual(fdf.scan_files('testcase/empty_dir'), [])
         # directory not exists
@@ -49,8 +46,8 @@ class TestFindDuplicateFiles(unittest.TestCase):
         # check if two same size files in result
         self.assertIn(set(self.duplicate_files), result)
         # check if there is no empty file in result
-        self.assertNotIn(join(getcwd(), 'testcase/empty_file1'), result)
-        self.assertNotIn(join(getcwd(), 'testcase/empty_file2'), result)
+        self.assertNotIn('./testcase/empty_file1', result)
+        self.assertNotIn('./testcase/empty_file2', result)
 
     def test_group_files_by_checksum(self):
         group_files = fdf.group_files_by_checksum(self.duplicate_files)
@@ -59,11 +56,11 @@ class TestFindDuplicateFiles(unittest.TestCase):
         self.assertIn(set(self.duplicate_files), result)
 
     def test_find_duplicate_files(self):
-        add_file = [join(getcwd(), 'testcase/empty_file1')]
+        add_file = ['./testcase/empty_file1', './testcase/empty_file2']
         dup_files = fdf.find_duplicate_files(self.duplicate_files + add_file)
         # change list to set for comparision
         result = [set(group) for group in dup_files]
         # check if duplicate file in result
         self.assertIn(set(self.duplicate_files), result)
         # check if empty file not in result
-        self.assertNotIn(add_file, result)
+        self.assertNotIn(set(add_file), result)

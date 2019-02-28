@@ -19,6 +19,9 @@ def take_args():
     parser = argparse.ArgumentParser(description='Duplicate Files Finder')
     parser.add_argument('-p', '--path', required=True,
                         help='root directory')
+    parser.add_argument('-b', '--bonus', action='store_true')
+    parser.add_argument('-hr', '--human-readable', action='store_true',
+                        help='pretty print')
     return parser.parse_args()
 
 
@@ -161,10 +164,88 @@ def validate_path(path):
         raise ValueError('Directory Error')
 
 
+def pretty_print(func, file_list, human_readable):
+    """ Print to terminal that can be read by human or not """
+    if human_readable:
+            print(dumps(func(file_list), indent=4))
+    else:
+        print(dumps(func(file_list)))
+
+
+"""-----------------BONUS--------------------------------"""
+
+
+def bonus_group_file(file_names):
+    """
+    Compare two file at a time and put them to the same list if they have
+    the same content
+    """
+    duplicate_files = []
+    visited = []
+    for i in range(len(file_names) - 1):
+        if file_names[i] not in visited:
+            tmp = []
+            tmp.append(file_names[i])
+            for x in range(i + 1, len(file_names)):
+                if file_compare(file_names[i], file_names[x]):
+                    tmp.append(file_names[x])
+            if len(tmp) > 1:
+                duplicate_files.append(tmp)
+                visited.extend(tmp)
+    return duplicate_files
+
+
+def file_compare(file_name1, file_name2):
+    """
+    Divide file content by chunk and compare them together
+    """
+    with open(file_name1, 'rb') as file1, open(file_name2, 'rb') as file2:
+        while True:
+            file1_chunk = file1.read(DEFAULT_BUFFER_SIZE)
+            file2_chunk = file2.read(DEFAULT_BUFFER_SIZE)
+            if file1_chunk != file2_chunk:
+                return False
+            if not file1_chunk:
+                return True
+
+
+def bonus_find_duplicate_files(file_path_names):
+    """ Waypoint6
+    Returns a list of groups of duplicate files
+
+    Example:
+
+        >>> file_path_names = ['/home/botnet/downloads/heobs/archive.csv',
+                               '/home/botnet/downloads/heobs/GL0625.jpg',
+                               ...]
+        >>> find_duplicate_files(file_path_names)
+        [['/home/botnet/downloads/heobs/GL0701.jpg',
+        '/home/botnet/downloads/heritagego/GL0701.jpg'],
+        [...]]
+
+
+    @param file_path_names: a list of file paths
+
+    @return: list of list of file of the same content
+    """
+    grouped_files_by_size = group_files_by_size(file_path_names)
+    duplicate_files = []
+    for file_group in grouped_files_by_size:
+        for duplicate_file_group in bonus_group_file(file_group):
+            duplicate_files.append(duplicate_file_group)
+    return duplicate_files
+
+
+"""-------------------MAIN---------------------"""
+
+
 def main():
     args = take_args()
     files = scan_files(args.path)
-    print(dumps(find_duplicate_files(files)))
+    if args.bonus:
+        pretty_print(bonus_find_duplicate_files, files, args.human_readable)
+    else:
+        pretty_print(find_duplicate_files, files, args.human_readable)
 
 
 if __name__ == '__main__':
